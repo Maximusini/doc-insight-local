@@ -20,16 +20,19 @@ class RAGClient:
                 documents=[doc]
             )
             
-    def query(self, text, n_results=1):
+    def query(self, text, n_results=3):
         vec = self.get_embedding(text)
         results = self.collection.query(
             query_embeddings=[vec],
             n_results=n_results
         )
         if results['documents'] and results['documents'][0]:
-            return results['documents'][0][0]
+            chunks = results['documents'][0]
+            joined_chunks = '\n\n---\n\n'.join(chunks)
+            return joined_chunks
+        
         return None
-    
+        
     def generate_answer(self, context, question):
         if not context:
             return 'Я не нашёл информацию в документах.'

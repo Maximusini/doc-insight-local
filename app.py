@@ -26,6 +26,7 @@ if prompt:
     with st.spinner('Думаю...'):
         context = rag.query(prompt)
         response = rag.generate_answer(context, prompt)
+    print(context)
     
     st.session_state.messages.append({'role': 'assistant', 'content': response})
     with st.chat_message('assistant'):
