@@ -1,25 +1,31 @@
 import chromadb
 import ollama
-import numpy as np
-import re
 import pickle
+import os
+import rank_bm25
 from core.utils import tokenize
 from sentence_transformers import CrossEncoder
+from core.config import *
 
 class RAGClient:
-    def __init__(self, db_path='./db', collection_name='docs'):
+    def __init__(self, db_path=DB_DIR, collection_name='docs'):
         self.client = chromadb.PersistentClient(path=db_path)
         self.collection = self.client.get_or_create_collection(name=collection_name)
         
-        self.reranker = CrossEncoder('cross-encoder/mmarco-mMiniLMv2-L12-H384-v1')
+        self.reranker = CrossEncoder(RERANKER_MODEL)
         
-        with open('bm25_index.pkl', 'rb') as f:
-            bm25_index = pickle.load(f)
-        self.bm25 = bm25_index['model']
-        self.bm25_chunks = bm25_index['chunks']
+        if os.path.exists(BM25_PATH):
+            with open(BM25_PATH, 'rb') as f:
+                bm25_index = pickle.load(f)
+                
+            self.bm25 = bm25_index['model']
+            self.bm25_chunks = bm25_index['chunks']
+        else:
+            self.bm25 = None
+            self.bm25_chunks = []
         
     def get_embedding(self, text):
-        text_emb = ollama.embeddings(model='nomic-embed-text', prompt=text)
+        text_emb = ollama.embeddings(model=EMBEDDING_MODEL, prompt=text)
         return text_emb['embedding']
     
     def add_documents(self, documents):
@@ -31,12 +37,31 @@ class RAGClient:
                 documents=[doc]
             )
             
-    def query_bm25(self, text, n=3):
-        tokenized_text = tokenize(text)
-        top = self.bm25.get_top_n(tokenized_text, self.bm25_chunks, n=n)
-        return top
+    def build_indices(self, chunks):
+        self.add_documents(chunks)
+        tokenized_corpus = [tokenize(doc) for doc in chunks]
+        bm25 = rank_bm25.BM25Okapi(tokenized_corpus)
+        data = {
+            'model': bm25,
+            'chunks': chunks
+        }
+        
+        with open(BM25_PATH, 'wb') as f: 
+            pickle.dump(data, f)
             
-    def query(self, text, n_results=3):
+        self.bm25 = bm25
+        self.bm25_chunks = chunks  
+            
+    def query_bm25(self, text, n=SEARCH_TOP_K):
+        tokenized_text = tokenize(text)
+        
+        if self.bm25 != None:
+            top = self.bm25.get_top_n(tokenized_text, self.bm25_chunks, n=n)
+            return top
+        else:
+            return []
+            
+    def query(self, text, n_results=SEARCH_TOP_K):
         n_candidates = n_results * 3
         vec = self.get_embedding(text)
         qbm = self.query_bm25(text, n=n_candidates)
@@ -72,6 +97,6 @@ class RAGClient:
                           Контекст: {context}
                           Вопрос: {question}'''
                           
-        response = ollama.chat(model='gemma3:4b', messages=[{'role': 'user', 'content': instruction}])
+        response = ollama.chat(model=LLM_MODEL, messages=[{'role': 'user', 'content': instruction}])
         
         return response['message']['content']
