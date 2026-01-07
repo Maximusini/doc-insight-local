@@ -39,20 +39,30 @@ class RAGClient:
             documents=documents
         )
             
-    def build_indices(self, chunks):
-        self.add_documents(chunks)
-        tokenized_corpus = [tokenize(doc) for doc in chunks]
+    def build_indices(self, new_chunks):
+        self.add_documents(new_chunks)
+        
+        all_chunks = []
+        if os.path.exists(BM25_PATH):
+            with open(BM25_PATH, 'rb') as f:
+                    data = pickle.load(f)
+                    if 'chunks' in data:
+                        all_chunks = data['chunks']
+                        
+        all_chunks.extend(new_chunks)
+            
+        tokenized_corpus = [tokenize(doc) for doc in all_chunks]
         bm25 = rank_bm25.BM25Okapi(tokenized_corpus)
         data = {
             'model': bm25,
-            'chunks': chunks
+            'chunks': all_chunks
         }
         
         with open(BM25_PATH, 'wb') as f: 
             pickle.dump(data, f)
             
         self.bm25 = bm25
-        self.bm25_chunks = chunks  
+        self.bm25_chunks = all_chunks  
             
     def query_bm25(self, text, n=SEARCH_TOP_K):
         tokenized_text = tokenize(text)
