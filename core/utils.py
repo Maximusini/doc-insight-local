@@ -1,6 +1,7 @@
 import re
 import os
 import shutil
+import hashlib
 from core.config import *
 
 def tokenize(text):
@@ -31,3 +32,7 @@ def clear_database():
             if filename != '.gitkeep':
                 file = os.path.join(DATA_DIR, filename)
                 os.remove(file)
+                
+                
+def generate_chunk_id(content):
+    return hashlib.sha256(content.encode('utf-8')).hexdigest()

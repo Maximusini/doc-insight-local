@@ -1,4 +1,5 @@
 import streamlit as st
+import ollama
 from core.rag_pipeline import RAGClient
 from core.utils import *
 from core.reader import read_pdf
@@ -8,23 +9,37 @@ from core.config import *
 st.set_page_config(page_title='Local RAG', page_icon='🤖')
 
 @st.cache_resource
-def get_rag():
-    return RAGClient()
+def get_rag(llm_model):
+    return RAGClient(llm_model=llm_model)
 
-rag = get_rag()
+try:
+    models_list = [m['model'] for m in ollama.list()['models']]
+except Exception:
+    models_list = [LLM_MODEL]
 
 with st.sidebar:
+    model_selector = st.selectbox('Выбери модель', models_list)
+    rag = get_rag(model_selector)
+    
     file = st.file_uploader('Загрузи документ (PDF)', type='pdf')
     if file:
         if 'last_uploaded' not in st.session_state or st.session_state.last_uploaded != file.name:
             with st.spinner('Читаю и индексирую документ...'):
                 file_path = save_uploaded_file(file)
                 pdf = read_pdf(file_path)
+                
+                if len(pdf) < 50:
+                    st.error('Файл пустой или это скан (картинка). Распознавание текста не поддерживается.')
+                    if os.path.exists(file_path): os.remove(file_path)
+                    st.stop()
+                    
                 text_splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
                 chunks = text_splitter.split_text(pdf)
                 rag.build_indices(chunks)
                 st.success('База знаний обновлена!')
                 st.session_state.last_uploaded = file.name
+                
+    
     
     reset_btn = st.button('Очистить базу')
     if reset_btn:

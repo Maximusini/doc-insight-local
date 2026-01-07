@@ -3,14 +3,15 @@ import ollama
 import pickle
 import os
 import rank_bm25
-from core.utils import tokenize
+from core.utils import tokenize, generate_chunk_id
 from sentence_transformers import CrossEncoder
 from core.config import *
 
 class RAGClient:
-    def __init__(self, db_path=DB_DIR, collection_name='docs'):
+    def __init__(self, db_path=DB_DIR, collection_name='docs', llm_model=LLM_MODEL):
         self.client = chromadb.PersistentClient(path=db_path)
         self.collection = self.client.get_or_create_collection(name=collection_name)
+        self.llm_model = llm_model
         
         self.reranker = CrossEncoder(RERANKER_MODEL)
         
@@ -29,13 +30,14 @@ class RAGClient:
         return text_emb['embedding']
     
     def add_documents(self, documents):
-        for i, doc in enumerate(documents):
-            vec = self.get_embedding(doc)
-            self.collection.add(
-                ids=[f'doc_{len(self.collection.get()["ids"]) + i}'],
-                embeddings=[vec],
-                documents=[doc]
-            )
+        ids = [generate_chunk_id(doc) for doc in documents]
+        embeddings = [self.get_embedding(doc) for doc in documents]
+        
+        self.collection.upsert(
+            ids=ids,
+            embeddings=embeddings,
+            documents=documents
+        )
             
     def build_indices(self, chunks):
         self.add_documents(chunks)
@@ -103,7 +105,7 @@ class RAGClient:
                           Верни ТОЛЬКО переформулированный вопрос.
                           User prompt. История: {last_messages_str}, Вопрос: {query}.
                           '''
-        response = ollama.chat(model=LLM_MODEL, messages=[{'role': 'user', 'content': instruction}])
+        response = ollama.chat(model=self.llm_model, messages=[{'role': 'user', 'content': instruction}])
         
         return response['message']['content']
         
@@ -115,7 +117,7 @@ class RAGClient:
                           Контекст: {context}
                           Вопрос: {question}'''
                           
-        response = ollama.chat(model=LLM_MODEL, messages=[{'role': 'user', 'content': instruction}])
+        response = ollama.chat(model=self.llm_model, messages=[{'role': 'user', 'content': instruction}])
         
         return response['message']['content']
     
