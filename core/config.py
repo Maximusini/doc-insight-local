@@ -13,6 +13,6 @@ RERANKER_MODEL = 'cross-encoder/mmarco-mMiniLMv2-L12-H384-v1'
 
 # Параметры RAG
 CHUNK_SIZE = 1000
-CHUNK_OVERLAP = 200
-SEARCH_TOP_K = 3     # Сколько финальных ответов отдавать
+CHUNK_OVERLAP = 400
+SEARCH_TOP_K = 5     # Сколько финальных ответов отдавать
 CANDIDATES_K = 10    # Сколько кандидатов искать на первом этапе

@@ -88,6 +88,24 @@ class RAGClient:
         result = '\n---\n'.join(final_docs)
         
         return result
+    
+    def contextualize_query(self, query, chat_history):
+        last_5 = chat_history[-5:]
+        last_messages = []
+        for item in last_5:
+            role = item['role']
+            content = item['content']
+            message = f'{role}: {content}'
+            last_messages.append(message)
+        last_messages_str = '\n'.join(last_messages)
+        instruction = f'''System prompt. Ты переписываешь вопросы для поисковой системы. 
+                          Учитывая историю чата, переформулируй последний вопрос пользователя так, чтобы он стал самостоятельным и полным.
+                          Верни ТОЛЬКО переформулированный вопрос.
+                          User prompt. История: {last_messages_str}, Вопрос: {query}.
+                          '''
+        response = ollama.chat(model=LLM_MODEL, messages=[{'role': 'user', 'content': instruction}])
+        
+        return response['message']['content']
         
     def generate_answer(self, context, question):
         if not context:
@@ -100,3 +118,14 @@ class RAGClient:
         response = ollama.chat(model=LLM_MODEL, messages=[{'role': 'user', 'content': instruction}])
         
         return response['message']['content']
+    
+    def reset_database(self):
+        try:
+            self.client.delete_collection(self.collection.name)
+        except ValueError:
+            pass
+        
+        self.collection = self.client.get_or_create_collection(name=self.collection.name)
+        
+        self.bm25 = None
+        self.bm25_chunks = []

@@ -28,11 +28,15 @@ with st.sidebar:
     
     reset_btn = st.button('Очистить базу')
     if reset_btn:
-        clear_database()
-        st.cache_resource.clear()
-        st.session_state.clear()
-        st.rerun()
+        with st.spinner("Очищаю данные..."):
+            rag.reset_database()
+            
+            clear_database()
 
+            st.cache_resource.clear()
+            st.session_state.clear()
+            st.rerun()
+            
 if 'messages' not in st.session_state:
     st.session_state.messages = []
 
@@ -48,9 +52,11 @@ if prompt:
         st.write(prompt)
 
     with st.spinner('Думаю...'):
-        context = rag.query(prompt)
+        new_query = rag.contextualize_query(prompt, st.session_state.messages[:-1])
+        st.write(f'🔄 *Ищу: {new_query}*')
+        context = rag.query(new_query)
         if context:
-            response = rag.generate_answer(context, prompt)
+            response = rag.generate_answer(context, new_query)
         else:
             response = 'Я пока ничего не знаю. Загрузи документ в меню слева!'
             context = 'Нет контекста'

@@ -23,8 +23,8 @@ def save_uploaded_file(uploaded_file):
 
 
 def clear_database():
-    if os.path.exists(DB_DIR):
-        shutil.rmtree(DB_DIR)
+    if os.path.exists(BM25_PATH):
+        os.remove(BM25_PATH)
         
     if os.path.exists(DATA_DIR):
         for filename in os.listdir(DATA_DIR):
