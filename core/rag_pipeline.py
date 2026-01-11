@@ -13,18 +13,28 @@ class RAGClient:
         self.collection = self.client.get_or_create_collection(name=collection_name)
         self.llm_model = llm_model
         
+        try:
+            available_models = [m['model'] for m in ollama.list()['models']]
+            base_model = EMBEDDING_MODEL.split(':')[0]
+            
+            if base_model not in available_models:
+                ollama.pull(EMBEDDING_MODEL)
+        except Exception as e:
+            print(e)
+        
         self.reranker = CrossEncoder(RERANKER_MODEL)
         
         if os.path.exists(BM25_PATH):
             with open(BM25_PATH, 'rb') as f:
-                bm25_index = pickle.load(f)
-                
-            self.bm25 = bm25_index['model']
-            self.bm25_chunks = bm25_index['chunks']
+                self.bm25 = pickle.load(f)
         else:
             self.bm25 = None
-            self.bm25_chunks = []
         
+        try:
+            self.bm25_chunks = self.collection.get()['documents']
+        except Exception:
+            self.bm25_chunks = []
+            
     def get_embedding(self, text):
         text_emb = ollama.embeddings(model=EMBEDDING_MODEL, prompt=text)
         return text_emb['embedding']
@@ -42,27 +52,15 @@ class RAGClient:
     def build_indices(self, new_chunks):
         self.add_documents(new_chunks)
         
-        all_chunks = []
-        if os.path.exists(BM25_PATH):
-            with open(BM25_PATH, 'rb') as f:
-                    data = pickle.load(f)
-                    if 'chunks' in data:
-                        all_chunks = data['chunks']
-                        
-        all_chunks.extend(new_chunks)
-            
-        tokenized_corpus = [tokenize(doc) for doc in all_chunks]
-        bm25 = rank_bm25.BM25Okapi(tokenized_corpus)
-        data = {
-            'model': bm25,
-            'chunks': all_chunks
-        }
+        all_docs = self.collection.get()['documents']
         
+        tokenized_corpus = [tokenize(doc) for doc in all_docs]
+        bm25 = rank_bm25.BM25Okapi(tokenized_corpus)
         with open(BM25_PATH, 'wb') as f: 
-            pickle.dump(data, f)
+            pickle.dump(bm25, f)
             
         self.bm25 = bm25
-        self.bm25_chunks = all_chunks  
+        self.bm25_chunks = all_docs  
             
     def query_bm25(self, text, n=SEARCH_TOP_K):
         tokenized_text = tokenize(text)
