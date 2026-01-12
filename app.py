@@ -69,8 +69,11 @@ if prompt:
     with st.spinner('Думаю...'):
         new_query = rag.contextualize_query(prompt, st.session_state.messages[:-1])
         st.write(f'🔄 *Ищу: {new_query}*')
-        context = rag.query(new_query)
-        if context:
+        
+        context_list = rag.query(new_query)
+        
+        if context_list:
+            context = '\n---\n'.join(context_list)
             response = rag.generate_answer(context, new_query)
         else:
             response = 'Я пока ничего не знаю. Загрузи документ в меню слева!'
@@ -80,4 +83,7 @@ if prompt:
     with st.chat_message('assistant'):
         st.write(response)
         
-    with st.expander('Источники'): st.write(context)
+    with st.expander(f'Источники (Найдено фрагментов: {len(context_list)})'):
+        for i, doc in enumerate(context_list): 
+            st.markdown(f'**Фрагмент #{i+1}**')
+            st.info(doc)

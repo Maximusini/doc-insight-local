@@ -95,9 +95,8 @@ class RAGClient:
         sorted_scores =  sorted(candidate_scores, key=lambda x: x[1], reverse=True)
         top_n = sorted_scores[:n_results]
         final_docs = [doc[0] for doc in top_n]
-        result = '\n---\n'.join(final_docs)
-        
-        return result
+
+        return final_docs
     
     def contextualize_query(self, query, chat_history):
         last_5 = chat_history[-5:]
